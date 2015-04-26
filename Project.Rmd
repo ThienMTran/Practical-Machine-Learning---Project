@@ -1,0 +1,68 @@
+---
+title: "Practical Machine Learninng - Project"
+author: "Thien Tran"
+date: "Monday, April 27, 2015"
+output: pdf_document
+keep_md: yes
+---
+
+# Background
+## Dependent Variables
+- Class A: exactly according to specification
+- Class B: throwing the elbows to the front
+- Class C: lifting the dumbbell only halfway
+- Class D: lowering the dumbbell only halfway,
+- Class E: throwing the hips to the front.
+
+## Predictor Variables
+For data recording, the authors used 4 inertial measurement units (IMU), which provide three-axes: acceleration, gyroscope and magnetometer data. The sensors are mounted in the users' glove, armbarnd, lumbar belt, and dumdbell. The author also used "a sliding window approach with diifferent lengths from 0.5 second to 2.5 seconds, with 0.5 second overlap. In each step of the sliding window approach they calculated features on the features on the Euler angles (roll, pitch and yaw), as well as the raw accelerometer, gyroscope and magnetometer readings. For the Euler angles of each of the 4 sensors they calculated 8 features: mean,variance, standard deviation, max, min, amplitude, kurtosis and skewness. (Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013).
+
+# Data Preprocessing
+## Removing variables with too many NA's
+```{r, echo=FALSE}
+train = read.csv("./pml-training.csv")
+test = read.csv("./pml-testing.csv")
+```
+The table below shows that in the training set, out of 160 variables, there are 67 variables that have 97.9% of missing values.
+```{r, echo=FALSE}
+table(apply(is.na(train),2,sum))
+```
+Therefore, we only keep 93 variables that have enough data points for data exploration and prediction.
+```{r, echo=FALSE}
+train1 = subset(train, select=which(apply(is.na(train),2,sum) == 0))
+```
+## Ploting potential predictors
+With the remaining 93 variables, we will visualise each variable's possible correlation with the dependent variable (viz., classe) by ploting them against the index, and coloured by the five "classe" type. We then choose the 16 variables that show the most variations accross 5 classes (i.e., A, B, C, D, E).
+
+```{r, echo=FALSE}
+usedVariables = c("roll_belt","pitch_belt","total_accel_belt","gyros_belt_x","gyros_belt_y",
+                  "gyros_belt_z","accel_belt_x","accel_belt_y","accel_belt_z","magnet_belt_x",
+                  "magnet_belt_y","magnet_belt_z","gyros_arm_x","accel_dumbbell_x",
+                  "accel_dumbbell_y","pitch_forearm")
+par(mfrow = c(4,4), mar=c(5,4,1,1))
+for(i in usedVariables){
+  plot(train1[,i], col=train1$classe, ylab=colnames(train1[i]))
+}
+```
+
+# Modelling
+We choose the the Bagged CART method (i.e., method = "treebag") for the classification problem. This is because its computation advantage against the ramdom forest. Importantly, the treebag method implement a cross-validation process.
+```{r, echo=FALSE, massage=FALSE, warning=FALSE, results='hide'}
+train2 = subset(train1, select = c(usedVariables,"classe"))
+library(caret)
+modFitTree = train(classe ~ ., data=train2, method="treebag")
+```
+In particular, there were 25 resampling bootstraped perform with the Accuracy of 0.941712, Kappa of 0.926323.
+```{r, echo=FALSE}
+print(modFitTree)
+```
+
+# Prediction
+Finally, the fitted Bagged CART model is used to predict the classificaiton for the 20 cases in the test set. When submitting in the submission part ofthe project, it achieved 95% accuracy (i.e., 19 out of 20). Clearly, the cross-validation process in the Bagged CART model has reduced the overfitting of the CART model; thus, increase the accuracy in the testing set. The predicted classification for each problem_id is as follow:
+```{r, echo=FALSE}
+predTree = predict(modFitTree, newdata=test)
+test$predict = predTree
+test[,c("problem_id","predict")]
+```
+
+
